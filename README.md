@@ -24,6 +24,10 @@ middle.
 
 ## What it does
 
+
+https://github.com/user-attachments/assets/6320cb02-66a4-4c69-8712-9765f024f6c2
+
+
 ```
    PS Vita ──── one USB cable ────▶ PS5 ────▶ TV
  (your game)                     (VITA5 app)   (picture + sound)
