@@ -44,7 +44,12 @@ https://github.com/user-attachments/assets/6320cb02-66a4-4c69-8712-9765f024f6c2
 
 ---
 
-## Installation
+## Requirements
+
+This app requires the official VitaUSBStream plugin from BMK-Studio: https://github.com/BMK-Studio/VitaUSBStream
+
+No other USB streaming plugin is supported or will work.
+
 
 > **Before you start:** both devices must already run homebrew. The Vita needs
 > a hacked (CFW) system with **VitaUSBStream** installed, and the PS5 needs an
