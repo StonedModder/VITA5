@@ -1,6 +1,6 @@
 # VITA5
 
-**Play your PS Vita on the big screen — over a single USB cable.**
+**2 consoles, 1 cable. 0 emulation. All real hardware**
 
 VITA5 docks a PlayStation Vita to a PS5. The Vita's picture and sound play on
 your TV through the PS5, and your DualSense controller sends input back to the
