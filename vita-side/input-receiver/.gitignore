@@ -1,0 +1,10 @@
+# VITA5 - build artifact exclusions.
+# Copyright (C) 2026 VITA5 contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+*.o
+*.d
+*.elf
+*.velf
+*.skprx
+pad_wire_test

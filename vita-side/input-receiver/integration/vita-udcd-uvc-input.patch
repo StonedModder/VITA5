@@ -1,0 +1,234 @@
+diff --git a/Makefile b/Makefile
+index fb47035..cd110c0 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,10 +1,15 @@
+ TARGET	= udcd_uvc
+-OBJS	= src/main.o
++OBJS	= src/main.o src/input_receiver.o src/pad_wire.o
+ LIBS	= -lSceSysmemForDriver_stub -lSceThreadmgrForDriver_stub \
+ 	-lSceCpuForDriver_stub -lSceUdcdForDriver_stub \
+ 	-lSceDisplayForDriver_stub -lSceIftuForDriver_stub \
++	-lSceCtrlForDriver_stub -lSceKernelSuspendForDriver_stub \
++	-lSceSysclibForDriver_stub \
+ 	-ltaihenForKernel_stub
+ 
++# VITA5 input receiver: compiled into this gadget driver
++CFLAGS	+= -DINPUT_RECEIVER_INTEGRATED
++
+ ifeq ($(DEBUG), 1)
+ 	OBJS	+= debug/log.o debug/draw.o debug/console.o debug/font_data.o
+ 	CFLAGS	+= -DDEBUG -Idebug
+diff --git a/include/usb_descriptors.h b/include/usb_descriptors.h
+index 42c9d3f..9fcfafe 100644
+--- a/include/usb_descriptors.h
++++ b/include/usb_descriptors.h
+@@ -16,6 +16,7 @@
+ 
+ #define CONTROL_INTERFACE 		0
+ #define STREAM_INTERFACE		1
++#define INPUT_INTERFACE			2
+ 
+ #define INTERFACE_CTRL_ID		0
+ #define INPUT_TERMINAL_ID		1
+@@ -210,9 +211,10 @@ static struct __attribute__((packed)) {
+ 
+ /* Endpoint blocks */
+ static
+-struct SceUdcdEndpoint endpoints[2] = {
++struct SceUdcdEndpoint endpoints[3] = {
+ 	{USB_ENDPOINT_OUT, 0, 0, 0},
+ 	{USB_ENDPOINT_IN, 1, 0, 0},
++	{USB_ENDPOINT_OUT, 2, 0, 0},	/* VITA5 pad reports */
+ };
+ 
+ /* Interface */
+@@ -259,7 +261,7 @@ struct SceUdcdDeviceDescriptor devdesc_hi = {
+ 
+ /* Hi-Speed endpoint descriptors */
+ static
+-struct SceUdcdEndpointDescriptor endpdesc_hi[2] = {
++struct SceUdcdEndpointDescriptor endpdesc_hi[3] = {
+ 	/* Video Streaming endpoints */
+ 	{
+ 		USB_DT_ENDPOINT_SIZE,
+@@ -269,6 +271,15 @@ struct SceUdcdEndpointDescriptor endpdesc_hi[2] = {
+ 		0x200,				/* wMaxPacketSize */
+ 		0x00				/* bInterval */
+ 	},
++	/* VITA5 pad input endpoint */
++	{
++		USB_DT_ENDPOINT_SIZE,
++		USB_DT_ENDPOINT,
++		USB_ENDPOINT_OUT | 0x02,	/* bEndpointAddress */
++		USB_ENDPOINT_TYPE_BULK,		/* bmAttributes */
++		0x200,				/* wMaxPacketSize */
++		0x00				/* bInterval */
++	},
+ 	{
+ 		0,
+ 	}
+@@ -306,6 +317,20 @@ struct SceUdcdInterfaceDescriptor interdesc_hi[3] = {
+ 		(void *)&video_streaming_descriptors,
+ 		sizeof(video_streaming_descriptors)
+ 	},
++	{	/* Standard Vendor-Specific Input Interface Descriptor (VITA5 pad) */
++		USB_DT_INTERFACE_SIZE,
++		USB_DT_INTERFACE,
++		INPUT_INTERFACE,		/* bInterfaceNumber */
++		0,				/* bAlternateSetting */
++		1,				/* bNumEndpoints */
++		USB_CLASS_VENDOR_SPEC,		/* bInterfaceClass */
++		0x50,				/* bInterfaceSubClass ('P'ad) */
++		0x01,				/* bInterfaceProtocol (pad wire v1) */
++		0,				/* iInterface */
++		&endpdesc_hi[1],		/* endpoints */
++		NULL,				/* extra */
++		0
++	},
+ 	{
+ 		0
+ 	}
+@@ -313,9 +338,10 @@ struct SceUdcdInterfaceDescriptor interdesc_hi[3] = {
+ 
+ /* Hi-Speed settings */
+ static
+-struct SceUdcdInterfaceSettings settings_hi[2] = {
++struct SceUdcdInterfaceSettings settings_hi[3] = {
+ 	{&interdesc_hi[0], 0, 1},
+ 	{&interdesc_hi[1], 0, 1},
++	{&interdesc_hi[2], 0, 1},
+ };
+ 
+ /* Hi-Speed configuration descriptor */
+@@ -323,11 +349,11 @@ static
+ struct SceUdcdConfigDescriptor confdesc_hi = {
+ 	USB_DT_CONFIG_SIZE,
+ 	USB_DT_CONFIG,
+-	(USB_DT_CONFIG_SIZE + 2 * USB_DT_INTERFACE_SIZE + 1 * USB_DT_ENDPOINT_SIZE +
++	(USB_DT_CONFIG_SIZE + 3 * USB_DT_INTERFACE_SIZE + 2 * USB_DT_ENDPOINT_SIZE +
+ 		/* sizeof(interface_association_descriptor) + */
+ 		sizeof(video_control_descriptors) +
+ 		sizeof(video_streaming_descriptors)),	/* wTotalLength */
+-	2,			/* bNumInterfaces */
++	3,			/* bNumInterfaces */
+ 	1,			/* bConfigurationValue */
+ 	0,			/* iConfiguration */
+ 	0x80,			/* bmAttributes */
+@@ -367,7 +393,7 @@ struct SceUdcdDeviceDescriptor devdesc_full = {
+ 
+ /* Full-Speed endpoint descriptors */
+ static
+-struct SceUdcdEndpointDescriptor endpdesc_full[2] = {
++struct SceUdcdEndpointDescriptor endpdesc_full[3] = {
+ 	/* Video Streaming endpoints */
+ 	{
+ 		USB_DT_ENDPOINT_SIZE,
+@@ -377,6 +403,15 @@ struct SceUdcdEndpointDescriptor endpdesc_full[2] = {
+ 		0x40,				/* wMaxPacketSize */
+ 		0x00				/* bInterval */
+ 	},
++	/* VITA5 pad input endpoint */
++	{
++		USB_DT_ENDPOINT_SIZE,
++		USB_DT_ENDPOINT,
++		USB_ENDPOINT_OUT | 0x02,	/* bEndpointAddress */
++		USB_ENDPOINT_TYPE_BULK,		/* bmAttributes */
++		0x40,				/* wMaxPacketSize */
++		0x00				/* bInterval */
++	},
+ 	{
+ 		0,
+ 	}
+@@ -414,6 +449,20 @@ struct SceUdcdInterfaceDescriptor interdesc_full[3] = {
+ 		(void *)&video_streaming_descriptors,
+ 		sizeof(video_streaming_descriptors)
+ 	},
++	{	/* Standard Vendor-Specific Input Interface Descriptor (VITA5 pad) */
++		USB_DT_INTERFACE_SIZE,
++		USB_DT_INTERFACE,
++		INPUT_INTERFACE,		/* bInterfaceNumber */
++		0,				/* bAlternateSetting */
++		1,				/* bNumEndpoints */
++		USB_CLASS_VENDOR_SPEC,		/* bInterfaceClass */
++		0x50,				/* bInterfaceSubClass ('P'ad) */
++		0x01,				/* bInterfaceProtocol (pad wire v1) */
++		0,				/* iInterface */
++		&endpdesc_full[1],	/* endpoints */
++		NULL,				/* extra */
++		0
++	},
+ 	{
+ 		0
+ 	}
+@@ -421,9 +470,10 @@ struct SceUdcdInterfaceDescriptor interdesc_full[3] = {
+ 
+ /* Full-Speed settings */
+ static
+-struct SceUdcdInterfaceSettings settings_full[2] = {
++struct SceUdcdInterfaceSettings settings_full[3] = {
+ 	{&interdesc_full[0], 0, 1},
+-	{&interdesc_full[1], 0, 1}
++	{&interdesc_full[1], 0, 1},
++	{&interdesc_full[2], 0, 1}
+ };
+ 
+ /* Full-Speed configuration descriptor */
+@@ -431,11 +481,11 @@ static
+ struct SceUdcdConfigDescriptor confdesc_full = {
+ 	USB_DT_CONFIG_SIZE,
+ 	USB_DT_CONFIG,
+-	(USB_DT_CONFIG_SIZE + 2 * USB_DT_INTERFACE_SIZE + 1 * USB_DT_ENDPOINT_SIZE +
++	(USB_DT_CONFIG_SIZE + 3 * USB_DT_INTERFACE_SIZE + 2 * USB_DT_ENDPOINT_SIZE +
+ 		/* sizeof(interface_association_descriptor) + */
+ 		sizeof(video_control_descriptors) +
+ 		sizeof(video_streaming_descriptors)),	/* wTotalLength */
+-	2,			/* bNumInterfaces */
++	3,			/* bNumInterfaces */
+ 	1,			/* bConfigurationValue */
+ 	0,			/* iConfiguration */
+ 	0x80,			/* bmAttributes */
+diff --git a/src/main.c b/src/main.c
+index 1bdb1b7..6e5ac45 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -9,6 +9,7 @@
+ #include <string.h>
+ #include "usb_descriptors.h"
+ #include "uvc.h"
++#include "input_receiver.h"
+ 
+ #ifdef DEBUG
+ 
+@@ -508,7 +509,7 @@ static int uvc_driver_stop(int size, void *p, void *user_data)
+ 
+ static SceUdcdDriver uvc_udcd_driver = {
+ 	.driverName			= UVC_DRIVER_NAME,
+-	.numEndpoints			= 2,
++	.numEndpoints			= 3,
+ 	.endpoints			= endpoints,
+ 	.interface			= &interface,
+ 	.descriptor_hi			= &devdesc_hi,
+@@ -910,6 +911,14 @@ int uvc_start(void)
+ 	memcpy(&uvc_probe_control_setting, &uvc_probe_control_setting_default,
+ 	       sizeof(uvc_probe_control_setting));
+ 
++	/*
++	 * Start the VITA5 USB pad input receiver (interface 2, bulk OUT
++	 * 0x02). On failure video streaming keeps working on its own.
++	 */
++	ret = input_receiver_init(&endpoints[2]);
++	if (ret < 0)
++		LOG("Error starting the input receiver (0x%08X)\n", ret);
++
+ 	return 0;
+ 
+ err_alloc_uvc_frame_req:
+@@ -923,6 +932,7 @@ err_start_uvc_driver:
+ 
+ int uvc_stop(void)
+ {
++	input_receiver_term();
+ 	ksceUdcdDeactivate();
+ 	ksceUdcdStop(UVC_DRIVER_NAME, 0, NULL);
+ 	ksceUdcdStop("USBDeviceControllerDriver", 0, NULL);
