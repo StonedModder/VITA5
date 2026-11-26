@@ -1,3 +1,11 @@
+<!-- unleashedapi -->
+<p align="center">
+  <a href="https://unleashedapi.com/?utm_source=github&utm_medium=readme&utm_campaign=stonedmodder&utm_content=VITA5">
+    <img src="https://raw.githubusercontent.com/StonedModder/unleashedapi/main/assets/banner.png" alt="UnleashedAPI — uncensored OpenAI-compatible AI API. Free to start." width="100%">
+  </a><br>
+  <a href="https://unleashedapi.com/?utm_source=github&utm_medium=readme&utm_campaign=stonedmodder&utm_content=VITA5"><strong>UnleashedAPI</strong></a> — uncensored OpenAI-compatible models. Free to start, no prompt logging.
+</p>
+
 # VITA5
 
 **2 consoles, 1 cable. 0 emulation. All real hardware**
